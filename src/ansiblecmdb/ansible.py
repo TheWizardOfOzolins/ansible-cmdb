@@ -291,8 +291,23 @@ class Ansible(object):
                 x = json.loads(''.join(s))
                 # for compatibility with fact_caching=jsonfile
                 # which omits the "ansible_facts" parent key added by the setup module
-                if fact_cache:
+                root_keys = {'changed', 'unreachable', 'custom_facts', 'hostvars', 'groups'}
+                if fact_cache or ('ansible_facts' not in x and not root_keys.intersection(x)):
                     x = json.loads('{ "ansible_facts": ' + ''.join(s) + ' }')
+
+                # Check and ensure keys under 'ansible_facts' are prefixed with 'ansible_'
+                if 'ansible_facts' in x:
+                    facts = x['ansible_facts']
+                    prefixed_facts = {}
+                    prefixes = ['ansible_', 'facter_', 'ohai_']
+                    for key, value in facts.items():
+                        if any(key.startswith(prefix) for prefix in prefixes):
+                            new_key = key
+                        else:
+                            new_key = 'ansible_' + key
+                        prefixed_facts[new_key] = value
+                    x['ansible_facts'] = prefixed_facts
+
                 self.update_host(hostname, x)
                 self.update_host(hostname, {'name': hostname})
             except ValueError as e:
